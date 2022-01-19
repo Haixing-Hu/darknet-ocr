@@ -42,11 +42,11 @@ def read_url_img(url):
     except:
         #traceback.print_exc()
         return None
-    
-    
+
+
 def base64_to_PIL(string):
     try:
-            
+
             base64_data = base64.b64decode(string.split('base64,')[-1])
             buf = six.BytesIO()
             buf.write(base64_data)
@@ -55,7 +55,7 @@ def base64_to_PIL(string):
             return img
     except:
         return None
-    
+
 
 def soft_max(x):
     """numpy softmax"""
@@ -72,11 +72,11 @@ def reshape(x):
 
 def resize_img(image,scale,maxScale=None):
     """
-    image :BGR array 
+    image :BGR array
     """
     image = np.copy(image)
     vggMeans = [122.7717,102.9801, 115.9465 ]
-    imageList = cv2.split(image.astype(np.float32))
+    imageList = list(cv2.split(image.astype(np.float32)))
     imageList[0] = imageList[0]-vggMeans[0]
     imageList[1] = imageList[1]-vggMeans[1]
     imageList[2] = imageList[2]-vggMeans[2]
@@ -86,19 +86,19 @@ def resize_img(image,scale,maxScale=None):
     if maxScale is not None:
         if rate*max(h,w)>maxScale:
             rate = maxScale/max(h,w)
-            
+
     image = cv2.resize(image, None, None,fx=rate, fy=rate, interpolation=cv2.INTER_LINEAR)
     return image,rate
 
-    
-    
+
+
 def get_origin_box(size,anchors,boxes, scale = 16):
     """
-    size:(w,h) --h,w =img.shape[:2]//16 --- vggnet 8 maxpool 
+    size:(w,h) --h,w =img.shape[:2]//16 --- vggnet 8 maxpool
     boxes.shape = iw*ih*len(anchors)
     """
-   
-    w,h = size 
+
+    w,h = size
     iw = int(np.ceil(w/scale))*scale
     ih = int(np.ceil(h/scale))*scale
     anchors = np.array(anchors.split(',')).astype(int)
@@ -110,7 +110,7 @@ def get_origin_box(size,anchors,boxes, scale = 16):
     anchors[:,[2,3]]= cscale+anchors[:,[2,3]]
     gridbox =[[[i,j,i,j]+anchors for i in range(0,iw,scale)] for j in range(0,ih,scale)]
     gridbox = np.array(gridbox)
-    gridbox = gridbox.reshape((-1,4))   
+    gridbox = gridbox.reshape((-1,4))
     gridcy = (gridbox[:,1]+gridbox[:,3])/2.0
     gridh  = (gridbox[:,3]-gridbox[:,1]+1)
     cy     = boxes[:,0]*gridh+gridcy
@@ -129,7 +129,7 @@ def nms(boxes, scores, score_threshold=0.5, nms_threshold=0.3):
         w = xmax-xmin
         h = ymax-ymin
         return [round(xmin,4),round(ymin,4),round(w,4),round(h,4)]
-    
+
     newBoxes = [ box_to_center(box) for box in boxes]
     newscores = [ round(float(x),6) for x in scores]
     index = cv2.dnn.NMSBoxes(newBoxes, newscores, score_threshold=score_threshold, nms_threshold=nms_threshold)
@@ -146,29 +146,29 @@ def solve(box):
      y = cy-h/2
      x1-cx = -w/2*cos(angle) +h/2*sin(angle)
      y1 -cy= -w/2*sin(angle) -h/2*cos(angle)
-     
+
      h(x1-cx) = -wh/2*cos(angle) +hh/2*sin(angle)
      w(y1 -cy)= -ww/2*sin(angle) -hw/2*cos(angle)
      (hh+ww)/2sin(angle) = h(x1-cx)-w(y1 -cy)
      """
-        
+
      x1,y1,x2,y2,x3,y3,x4,y4= box[:8]
      cx = (x1+x3+x2+x4)/4.0
      cy = (y1+y3+y4+y2)/4.0
      w = (np.sqrt((x2-x1)**2+(y2-y1)**2)+np.sqrt((x3-x4)**2+(y3-y4)**2))/2
-     h = (np.sqrt((x2-x3)**2+(y2-y3)**2)+np.sqrt((x1-x4)**2+(y1-y4)**2))/2   
+     h = (np.sqrt((x2-x3)**2+(y2-y3)**2)+np.sqrt((x1-x4)**2+(y1-y4)**2))/2
      sinA = (h*(x1-cx)-w*(y1 -cy))*1.0/(h*h+w*w)*2
      if abs(sinA)>1:
           angle = None
      else:
           angle = np.arcsin(sinA)
-        
+
      return angle,w,h,cx,cy
 
 def rotate_nms(boxes, scores, score_threshold=0.5, nms_threshold=0.3):
     """
     boxes.append((center, (w,h), angle * 180.0 / math.pi))
-    
+
     """
     def rotate_box(box):
        angle,w,h,cx,cy =  solve(box)
@@ -179,12 +179,12 @@ def rotate_nms(boxes, scores, score_threshold=0.5, nms_threshold=0.3):
        cy = round(cy,4)
        return ((cx,cy),(w,h),angle)
 
-   
+
     if len(boxes)>0:
         newboxes = [rotate_box(box) for box in boxes]
         newscores = [ round(float(x),6) for x in scores]
         index = cv2.dnn.NMSBoxesRotated(newboxes, newscores, score_threshold=score_threshold, nms_threshold=nms_threshold)
-        
+
         if len(index)>0:
            index = index.reshape((-1,))
            return boxes[index],scores[index]
@@ -201,7 +201,7 @@ def get_boxes(bboxes):
     text_recs=np.zeros((len(bboxes), 8), np.int)
     index = 0
     for box in bboxes:
-        
+
         b1 = box[6] - box[7] / 2
         b2 = box[6] + box[7] / 2
         x1 = box[0]
@@ -212,7 +212,7 @@ def get_boxes(bboxes):
         y3 = box[5] * box[0] + b2
         x4 = box[2]
         y4 = box[5] * box[2] + b2
-        
+
         disX = x2 - x1
         disY = y2 - y1
         width = np.sqrt(disX*disX + disY*disY)
@@ -240,7 +240,7 @@ def get_boxes(bboxes):
         text_recs[index, 6] = x4
         text_recs[index, 7] = y4
         index = index + 1
-    
+
     boxes = []
     for box in text_recs:
            x1,y1 = (box[0],box[1])
@@ -251,4 +251,3 @@ def get_boxes(bboxes):
     boxes = np.array(boxes)
     return boxes
 
-    
